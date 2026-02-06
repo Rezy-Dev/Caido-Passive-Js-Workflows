@@ -1,3 +1,5 @@
+// This is js for 'SecretSniffer' workflow on caido. enjoy i guess!
+
 async function l({ request: f, response: A }, r) { var i; if (!A) return; const s = (i = A.getBody()) == null ? void 0 : i.toText(); if (!s) return; const a = [
   { regex: /(A3T[A-Z0-9]{13}|AKIA[0-9A-Z]{16}|AGPA[0-9A-Z]{16}|AIDA[0-9A-Z]{16}|AROA[0-9A-Z]{16}|AIPA[0-9A-Z]{16}|ANPA[0-9A-Z]{16}|ANVA[0-9A-Z]{16}|ASIA[0-9A-Z]{16})/g, title: "AWS API Key" },
   { regex: /(xox[pborsa]-[0-9]{12}-[0-9]{12}-[0-9]{12}-[a-z0-9]{32})/g, title: "Slack Token" },
