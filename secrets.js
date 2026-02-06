@@ -1,215 +1,323 @@
-async function l({ request: f, response: A }, r) {
-  if (!A) return;
+async function l({ request: f, response: A }, r) { var i; if (!A) return; const s = (i = A.getBody()) == null ? void 0 : i.toText(); if (!s) return; const a = [
+  { regex: /(A3T[A-Z0-9]{13}|AKIA[0-9A-Z]{16}|AGPA[0-9A-Z]{16}|AIDA[0-9A-Z]{16}|AROA[0-9A-Z]{16}|AIPA[0-9A-Z]{16}|ANPA[0-9A-Z]{16}|ANVA[0-9A-Z]{16}|ASIA[0-9A-Z]{16})/g, title: "AWS API Key" },
+  { regex: /(xox[pborsa]-[0-9]{12}-[0-9]{12}-[0-9]{12}-[a-z0-9]{32})/g, title: "Slack Token" },
 
-  const body = A.getBody()?.toText();
-  if (!body) return;
+  // all of the following are from https://blogs.jsmon.sh/100-regex-patterns/ exact copy paste!
+  
+  // 1. AWS Access Key ID
+  { regex: /\bAKIA[0-9A-Z]{16}\b/g, title: "AWS Access Key ID" },
 
-  // Limit displayed hits per detector to avoid giant findings
-  const MAX_HITS_PER_RULE = 20;
+  // 2. AWS Secret Access Key (converted from (?i)...(?-i) to JS /i
+  { regex: /aws(.{0,20})?['"][0-9a-zA-Z\/+]{40}['"]/gi, title: "AWS Secret Access Key" },
 
-  /**
-   * Helper: run regex globally, return unique matches (up to limit).
-   * Uses matchAll so it works reliably across engines.
-   */
-  function findMatches(text, regex, limit = MAX_HITS_PER_RULE) {
-    const out = [];
-    const seen = new Set();
+  // 3. Google API Key
+  { regex: /\bAIza[0-9A-Za-z\-_]{35}\b/g, title: "Google API Key" },
 
-    // Ensure global flag so matchAll iterates all
-    const flags = regex.flags.includes("g") ? regex.flags : regex.flags + "g";
-    const re = new RegExp(regex.source, flags);
+  // 4. Firebase Secret
+  { regex: /\bAAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}\b/g, title: "Firebase Secret" },
 
-    for (const m of text.matchAll(re)) {
-      const hit = m[0];
-      if (!seen.has(hit)) {
-        seen.add(hit);
-        out.push(hit);
-        if (out.length >= limit) break;
-      }
-    }
-    return out;
-  }
+  // 5. GitHub Token (classic)
+  { regex: /\bghp_[0-9a-zA-Z]{36}\b/g, title: "GitHub Token" },
 
-  // ---- Detectors (combined + normalized) ----
-  // NOTE: Use RegExp literals where possible. For patterns coming as strings, compile them.
-  const detectors = [
-    // API Keys & Tokens
-    { title: "AWS Access Key ID", severity: "high", regex: /\bAKIA[0-9A-Z]{16}\b/g },
-    { title: "AWS Access Key ID (Alt Prefixes)", severity: "high", regex: /\b(A3T[A-Z0-9]{13}|AGPA[0-9A-Z]{16}|AIDA[0-9A-Z]{16}|AROA[0-9A-Z]{16}|AIPA[0-9A-Z]{16}|ANPA[0-9A-Z]{16}|ANVA[0-9A-Z]{16}|ASIA[0-9A-Z]{16})\b/g },
+  // 6. GitLab Token
+  { regex: /\bglpat-[0-9a-zA-Z-_]{20}\b/g, title: "GitLab Token" },
 
-    { title: "AWS Secret Access Key (Context)", severity: "high", regex: /(?i)aws(.{0,20})?(?-i)['"][0-9a-zA-Z\/+]{40}['"]/g },
+  // 7. Slack Token (generic)
+  { regex: /\bxox[baprs]-([0-9a-zA-Z]{10,48})?\b/g, title: "Slack Token (Generic)" },
 
-    { title: "Google API Key", severity: "high", regex: /\bAIza[0-9A-Za-z\-_]{35}\b/g },
-    { title: "Firebase Secret", severity: "high", regex: /\bAAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}\b/g },
+  // 8. Stripe Secret Key
+  { regex: /\bsk_live_[0-9a-zA-Z]{24}\b/g, title: "Stripe Secret Key" },
 
-    { title: "GitHub Token (Classic)", severity: "high", regex: /\bghp_[0-9a-zA-Z]{36}\b/g },
-    { title: "GitHub Token (Fine-grained)", severity: "high", regex: /\bgithub_pat_[0-9A-Za-z_]{20,}\b/g },
+  // 9. Stripe Publishable Key
+  { regex: /\bpk_live_[0-9a-zA-Z]{24}\b/g, title: "Stripe Publishable Key" },
 
-    { title: "GitLab Token (PAT)", severity: "high", regex: /\bglpat-[0-9A-Za-z\-_]{20}\b/g },
-    { title: "GitLab Runner Token", severity: "high", regex: /\bglrt-[0-9A-Za-z\-_]{20}\b/g },
+  // 10. Twilio API Key
+  { regex: /\bSK[0-9a-fA-F]{32}\b/g, title: "Twilio API Key" },
 
-    { title: "Slack Token (Generic)", severity: "high", regex: /\bxox[baprs]-([0-9a-zA-Z]{10,48})?\b/g },
-    { title: "Slack Token (Strict)", severity: "high", regex: /\b(xox[p|b|o|a]-[0-9]{12}-[0-9]{12}-[0-9]{12}-[a-z0-9]{32})\b/g },
-    { title: "Slack Webhook", severity: "high", regex: /https:\/\/hooks\.slack\.com\/services\/T[a-zA-Z0-9_]{8}\/B[a-zA-Z0-9_]{8}\/[a-zA-Z0-9_]{24}/g },
+  // 11. SendGrid API Key
+  { regex: /\bSG\.[\w\d\-_]{22}\.[\w\d\-_]{43}\b/g, title: "SendGrid API Key" },
 
-    { title: "Stripe Secret Key", severity: "high", regex: /\bsk_live_[0-9a-zA-Z]{24}\b/g },
-    { title: "Stripe Publishable Key", severity: "medium", regex: /\bpk_live_[0-9a-zA-Z]{24}\b/g },
-    { title: "Stripe Restricted Key", severity: "high", regex: /\brk_live_[0-9a-zA-Z]{24}\b/g },
+  // 12. Mailgun API Key
+  { regex: /\bkey-[0-9a-zA-Z]{32}\b/g, title: "Mailgun API Key" },
 
-    { title: "Twilio API Key", severity: "high", regex: /\bSK[0-9a-fA-F]{32}\b/g },
-    { title: "SendGrid API Key", severity: "high", regex: /\bSG\.[\w\d\-_]{22}\.[\w\d\-_]{43}\b/g },
-    { title: "Mailgun API Key", severity: "high", regex: /\bkey-[0-9a-zA-Z]{32}\b/g },
-    { title: "Dropbox Access Token", severity: "high", regex: /\bsl\.[A-Za-z0-9_-]{20,100}\b/g },
-    { title: "Shopify Access Token", severity: "high", regex: /\bshpat_[0-9a-fA-F]{32}\b/g },
-    { title: "Facebook Access Token", severity: "high", regex: /\bEAACEdEose0cBA[0-9A-Za-z]+\b/g },
-    { title: "DigitalOcean Token", severity: "high", regex: /\bdop_v1_[a-z0-9]{64}\b/g },
-    { title: "Asana Personal Access Token", severity: "high", regex: /\b0\/[0-9a-z]{32}\b/g },
-    { title: "Linear API Key", severity: "high", regex: /\blin_api_[a-zA-Z0-9]{40}\b/g },
-    { title: "Telegram Bot Token", severity: "high", regex: /\b\d{9}:[a-zA-Z0-9_-]{35}\b/g },
+  // 13. Dropbox Access Token
+  { regex: /\bsl\.[A-Za-z0-9_-]{20,100}\b/g, title: "Dropbox Access Token" },
 
-    // OAuth & JWT
-    { title: "OAuth Client Secret", severity: "high", regex: /(?i)client_secret['"\s:=]+[a-zA-Z0-9\-_.~]{10,100}/g },
-    { title: "OAuth Client ID", severity: "medium", regex: /(?i)client_id['"\s:=]+[a-zA-Z0-9\-_.~]{10,100}/g },
-    { title: "JWT Token", severity: "medium", regex: /\beyJ[A-Za-z0-9-_=]+?\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*\b/g },
-    { title: "Azure Client Secret (Context)", severity: "high", regex: /(?i)azure(.{0,20})?client\.secret(.{0,20})?['"][a-zA-Z0-9._%+-]{32,}['"]/g },
-    { title: "Microsoft Teams Webhook", severity: "high", regex: /https:\/\/[a-z]+\.webhook\.office\.com\/webhookb2\/[a-zA-Z0-9@\-]+\/.*/g },
+  // 14. Shopify Access Token
+  { regex: /\bshpat_[0-9a-fA-F]{32}\b/g, title: "Shopify Access Token" },
 
-    // Credentials & Passwords (very FP-prone → keep medium)
-    { title: "Basic Auth String (user+pass)", severity: "medium", regex: /(?i)(username|user|email)['"\s:=]+[^\s'"@]{1,100}['"].*?(password|pwd)['"\s:=]+[^\s'"]{4,100}/g },
-    { title: "Password Assignment", severity: "medium", regex: /(?i)(password|pwd|pass)['"\s:=]+[^\s'"]{4,100}/g },
-    { title: "API Key in Variable", severity: "medium", regex: /(?i)(api[_-]?key)['"\s:=]+[a-zA-Z0-9\-_.]{8,100}/g },
-    { title: "Secret/Token in Variable", severity: "medium", regex: /(?i)(secret|token)['"\s:=]+[a-zA-Z0-9\-_.]{8,100}/g },
-    { title: "Authorization Bearer Token", severity: "medium", regex: /\bBearer\s+[a-zA-Z0-9\-._~+/]+=*\b/g },
+  // 15. Facebook Access Token
+  { regex: /\bEAACEdEose0cBA[0-9A-Za-z]+\b/g, title: "Facebook Access Token" },
 
-    // Database URLs
-    { title: "MongoDB Connection URI", severity: "high", regex: /mongodb(\+srv)?:\/\/[^\s'"]+/g },
-    { title: "PostgreSQL URI", severity: "high", regex: /postgres(?:ql)?:\/\/[^\s'"]+/g },
-    { title: "MySQL URI", severity: "high", regex: /mysql:\/\/[^\s'"]+/g },
-    { title: "Redis URI", severity: "high", regex: /redis:\/\/[^\s'"]+/g },
-    { title: "Elasticsearch URI", severity: "high", regex: /elasticsearch:\/\/[^\s'"]+/g },
-    { title: "JDBC URL", severity: "high", regex: /jdbc:\w+:\/\/[^\s'"]+/g },
-    { title: "AWS RDS Hostname", severity: "medium", regex: /\b[a-z0-9-]+\.rds\.amazonaws\.com\b/g },
-    { title: "Cloud SQL URI (GCP)", severity: "medium", regex: /googleapis\.com\/sql\/v1beta4\/projects\//g },
-    { title: "Supabase (Domain-ish)", severity: "medium", regex: /supabase\.co\/[a-z0-9]{15,}/g },
-    { title: "Firebase URL", severity: "medium", regex: /https:\/\/[a-z0-9-]+\.firebaseio\.com/g },
+  // 16. Heroku API Key (your list had [hH]eroku"....)
+  { regex: /[hH]eroku['"][0-9a-f]{32}['"]/g, title: "Heroku API Key" },
 
-    // Other Service Credentials
-    { title: "Algolia Key (Context)", severity: "high", regex: /(?i)(algolia|application)_?key['"\s:=]+[a-zA-Z0-9]{10,}/g },
-    { title: "Firebase API Key in Config Block", severity: "high", regex: /firebaseConfig\s*=\s*{[^}]*apiKey\s*:\s*['"][^'"]+['"]/g },
-    { title: "Cloudinary URL", severity: "high", regex: /cloudinary:\/\/[0-9]{15}:[a-zA-Z0-9]+@[a-zA-Z]+/g },
-    { title: "Sentry DSN", severity: "high", regex: /https:\/\/[a-zA-Z0-9]+@[a-z]+\.ingest\.sentry\.io\/\d+/g },
-    { title: "Netlify Token", severity: "high", regex: /netlifyAuthToken\s*=\s*['"][a-z0-9]{40}['"]/g },
-    { title: "Segment API Key (Context)", severity: "high", regex: /(?i)segment(.{0,20})?key['"\s:=]+[a-zA-Z0-9]{10,}/g },
-    { title: "Intercom Token (Context)", severity: "high", regex: /(?i)intercom(.{0,20})?token['"\s:=]+[a-zA-Z0-9-_]{20,}/g },
-    { title: "Amplitude API Key", severity: "high", regex: /apiKey['"]?\s*:\s*['"][a-z0-9\-]{32,64}['"]/g },
-    { title: "Plaid Client Secret (Context)", severity: "high", regex: /plaid(.{0,20})?(client)?secret['"\s:=]+[a-z0-9-_]{30,}/g },
+  // 17. DigitalOcean Token
+  { regex: /\bdop_v1_[a-z0-9]{64}\b/g, title: "DigitalOcean Token" },
 
-    // Container & Deployment Secrets
-    { title: "Docker Password (Context)", severity: "high", regex: /(?i)docker(.{0,20})?password['"\s:=]+[^\s'"]{8,}/g },
-    { title: "AWS IAM Role ARN", severity: "medium", regex: /\barn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9_+=,.@\-_/]+\b/g },
-    { title: "AWS S3 Bucket URL", severity: "medium", regex: /\bs3:\/\/[a-z0-9\-\.]{3,63}\b/g },
-    { title: "Kubernetes secretName", severity: "low", regex: /(?i)secretName:\s*['"]?[a-z0-9\-]+['"]?/g },
-    { title: "Helm Secret Value (very generic)", severity: "low", regex: /(?i)secret\s*:\s*['"][^'"]+['"]/g },
-    { title: "GitHub Actions Secret Ref", severity: "low", regex: /secrets\.[A-Z0-9_]+/g },
-    { title: "GitHub Actions Encrypted Value", severity: "low", regex: /encrypted_value:\s*['"][a-zA-Z0-9+/=]{10,}['"]/g },
-    { title: "K8s Service Account Token (JWT header)", severity: "medium", regex: /eyJhbGciOiJSUzI1NiIsImtpZCI6/g },
-    { title: "Vault Token", severity: "high", regex: /\bs\.[a-zA-Z0-9]{8,}\b/g },
-    { title: "Vault URL", severity: "medium", regex: /https:\/\/vault\.[a-z0-9\-_\.]+\.com/g },
+  // 18. Asana Personal Access Token
+  { regex: /\b0\/[0-9a-z]{32}\b/g, title: "Asana Personal Access Token" },
 
-    // DevOps & CI/CD Credentials
-    { title: "CircleCI Token", severity: "high", regex: /circle-token=[a-z0-9]{40}/g },
-    { title: "Travis Token (Context)", severity: "high", regex: /(?i)travis(.{0,20})?token['"\s:=]+[a-z0-9]{30,}/g },
-    { title: "Jenkins Crumb Token (Header)", severity: "medium", regex: /Jenkins-Crumb:\s*[a-z0-9]{30,}/g },
-    { title: "Azure DevOps Token (very FP)", severity: "low", regex: /\b[a-z0-9]{52}\b/g },
+  // 19. Linear API Key
+  { regex: /\blin_api_[a-zA-Z0-9]{40}\b/g, title: "Linear API Key" },
 
-    // SDKs & Tooling Keys
-    { title: "Bugsnag API Key (very FP)", severity: "low", regex: /\b[a-f0-9]{32}\b/g },
-    { title: "Datadog API Key (very FP)", severity: "low", regex: /\b[a-z0-9]{32}\b/g },
-    { title: "Loggly Token", severity: "medium", regex: /\b[a-z0-9]{30}-[a-z0-9]{10}\b/g },
-    { title: "New Relic Key", severity: "high", regex: /\bNRII-[a-zA-Z0-9]{20,}\b/g },
-    { title: "Mixpanel Token (Context)", severity: "medium", regex: /(?i)mixpanel(.{0,20})?token['"\s:=]+[a-z0-9]{32}/g },
-    { title: "Heap App ID", severity: "medium", regex: /heapSettings\.appId\s*=\s*['"][a-z0-9]{8,12}['"]/g },
-    { title: "Keen Project ID", severity: "medium", regex: /projectId['"]?\s*:\s*['"][a-f0-9]{24}['"]/g },
-    { title: "Keen Write Key", severity: "high", regex: /writeKey['"]?\s*:\s*['"][a-zA-Z0-9]{64}['"]/g },
-    { title: "Snyk Token", severity: "high", regex: /snyk_token\s*=\s*[a-f0-9\-]{36}/g },
-    { title: "Rollbar Access Token", severity: "high", regex: /access_token['"]?\s*:\s*['"][a-z0-9]{32}['"]/g },
+  // 20. Telegram Bot Token
+  { regex: /\b\d{9}:[a-zA-Z0-9_-]{35}\b/g, title: "Telegram Bot Token" },
 
-    // App & Game APIs
-    { title: "Twitch Key (Context)", severity: "medium", regex: /(?i)twitch(.{0,20})?key['"\s:=]+[a-zA-Z0-9]{20,}/g },
-    { title: "Discord Bot Token", severity: "high", regex: /[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}/g },
-    { title: "Discord Webhook URL", severity: "high", regex: /https:\/\/discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[a-zA-Z0-9_-]+/g },
-    { title: "Riot Games API Key", severity: "high", regex: /RGAPI-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g },
+  // 21. OAuth Client Secret
+  { regex: /client_secret['"\s:=]+[a-zA-Z0-9\-_.~]{10,100}/gi, title: "OAuth Client Secret" },
 
-    // URL Leaks & Internal Endpoints
-    { title: "Private IP (Internal)", severity: "low", regex: /\b(10\.\d{1,3}|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g },
-    { title: "Localhost Reference", severity: "low", regex: /localhost:[0-9]{2,5}/g },
-    { title: "Dev/Stage URL", severity: "low", regex: /\b(dev|staging|test)\.[a-z0-9.-]+\.(com|net|io)\b/g },
-    { title: "Internal Subdomain URL", severity: "low", regex: /https?:\/\/[a-z0-9.-]+\.internal\.[a-z]{2,}/g },
-    { title: "Preprod URL", severity: "low", regex: /https:\/\/preprod\.[a-z0-9-]+\.[a-z]{2,}/g },
+  // 22. OAuth Client ID
+  { regex: /client_id['"\s:=]+[a-zA-Z0-9\-_.~]{10,100}/gi, title: "OAuth Client ID" },
 
-    // Misc
-    { title: "Private Key Block", severity: "high", regex: /-----BEGIN (RSA|DSA|EC|OPENSSH)? PRIVATE KEY-----/g },
-    { title: "PEM Certificate Block", severity: "medium", regex: /-----BEGIN CERTIFICATE-----/g },
-    { title: "PGP Private Key Block", severity: "high", regex: /-----BEGIN PGP PRIVATE KEY BLOCK-----/g },
-    { title: "Base64 High Entropy String (Generic)", severity: "low", regex: /['"][A-Za-z0-9+\/]{40,}={0,2}['"]/g },
-    { title: "Generic API Key Detector", severity: "low", regex: /(?i)(apikey|api_key|secret|token)['"\s:=]+[a-zA-Z0-9\-._]{8,}/g },
-    { title: "Generic Bearer (Header-like)", severity: "low", regex: /(?i)authorization:\s*Bearer\s+[a-zA-Z0-9\-._~+/]+=*/g },
-    { title: "Session ID", severity: "low", regex: /(?i)(sessionid|session_id)['"\s:=]+[a-zA-Z0-9]{10,}/g },
-    { title: "Set-Cookie Generic", severity: "low", regex: /(?i)set-cookie:\s*[a-zA-Z0-9_-]+=/g },
-    { title: "CSRF Token", severity: "low", regex: /(?i)csrf(token)?['"\s:=]+[a-zA-Z0-9-_]{8,}/g },
-    { title: "JWT in Local Storage", severity: "medium", regex: /localStorage\.setItem\(['"]token['"],\s*['"]eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+['"]\)/g },
+  // 23. JWT Token
+  { regex: /\beyJ[A-Za-z0-9-_=]+?\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*\b/g, title: "JWT Token" },
 
-    // --- Extra patterns from your JSON-map (string patterns) ---
-    { title: "Amazon MWS Auth Token", severity: "high", regex: /amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g },
-    { title: "Google OAuth Access Token (ya29.)", severity: "high", regex: /ya29\.[0-9A-Za-z\-_]+/g },
-    { title: "GCP OAuth Client ID (googleusercontent)", severity: "medium", regex: /[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com/g },
-    { title: "GCP Service Account Marker", severity: "high", regex: /"type":\s*"service_account"/g },
-    { title: "Heroku API Key (UUID style)", severity: "high", regex: /[hH]eroku.*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/g },
-    { title: "Password in URL", severity: "high", regex: /[a-zA-Z]{3,10}:\/\/[^/\s:@]{3,20}:[^/\s:@]{3,20}@.{1,100}["'\s]/g },
-    { title: "PayPal Braintree Access Token", severity: "high", regex: /access_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}/g },
-    { title: "Square Access Token", severity: "high", regex: /sq0atp-[0-9A-Za-z\-_]{22}/g },
-    { title: "Square OAuth Secret", severity: "high", regex: /sq0csp-[0-9A-Za-z\-_]{43}/g },
-    { title: "Twitter Access Token (Context)", severity: "medium", regex: /[tT][wW][iI][tT][tT][eE][rR].*[1-9][0-9]+-[0-9a-zA-Z]{40}/g },
-    { title: "Facebook OAuth (Context)", severity: "medium", regex: /[fF][aA][cC][eE][bB][oO][oO][kK].*['"][0-9a-f]{32}['"]/g },
-    { title: "GitHub OAuth App Secret (FP prone)", severity: "low", regex: /\b[a-f0-9]{40}\b/g },
-    { title: "Generic API Key (32-45 in quotes)", severity: "low", regex: /[aA][pP][iI]_?[kK][eE][yY].*['"][0-9a-zA-Z]{32,45}['"]/g },
-    { title: "Generic Secret (32-45 in quotes)", severity: "low", regex: /[sS][eE][cC][rR][eE][tT].*['"][0-9a-zA-Z]{32,45}['"]/g },
-  ];
+  // 24. Azure Client Secret (converted to JS /i)
+  { regex: /azure(.{0,20})?client\.secret(.{0,20})?['"][a-zA-Z0-9._%+-]{32,}['"]/gi, title: "Azure Client Secret" },
 
-  // ---- Run detectors & build findings ----
-  const findings = {};
+  // 25. Microsoft Teams Webhook
+  { regex: /https:\/\/[a-z]+\.webhook\.office\.com\/webhookb2\/[a-zA-Z0-9@\-]+\/.*/g, title: "Microsoft Teams Webhook" },
 
-  for (const { title, regex, severity } of detectors) {
-    const hits = findMatches(body, regex);
+  // 26. Basic Auth String
+  { regex: /(username|user|email)['"\s:=]+[^\s'"@]{1,100}['"].*?(password|pwd)['"\s:=]+[^\s'"]{4,100}/gi, title: "Basic Auth String" },
 
-    if (hits.length > 0) {
-      const description = `Sniffed ${title}:\n\n${hits.join("\n")}${
-        hits.length >= MAX_HITS_PER_RULE ? `\n\n(Showing first ${MAX_HITS_PER_RULE} unique matches)` : ""
-      }`;
+  // 27. Password Assignment
+  { regex: /(password|pwd|pass)['"\s:=]+[^\s'"]{4,100}/gi, title: "Password Assignment" },
 
-      // Dedupe key should be stable and not huge
-      const dedupeKey = `${title}:${hits.join("|")}`.slice(0, 5000);
+  // 28. API Key in Variable
+  { regex: /(api[_-]?key)['"\s:=]+[a-zA-Z0-9\-_.]{8,100}/gi, title: "API Key in Variable" },
 
-      findings[title] = {
-        title,
-        reporter: "SecretSniffer",
-        request: f,
-        description,
-        dedupeKey,
-        severity,
-      };
-    } else {
-      // keep logs light (optional)
-      // r.console.log(`No matches found for ${title}`);
-    }
-  }
+  // 29. Secret in Variable
+  { regex: /(secret|token)['"\s:=]+[a-zA-Z0-9\-_.]{8,100}/gi, title: "Secret in Variable" },
 
-  // ---- Create findings ----
-  for (const key in findings) {
-    if (Object.prototype.hasOwnProperty.call(findings, key)) {
-      await r.findings.create(findings[key]);
-    }
-  }
-}
+  // 30. Authorization Bearer Token
+  { regex: /Bearer\s+[a-zA-Z0-9\-._~+/]+=*/g, title: "Authorization Bearer Token" },
 
-export { l as run };
+  // 31. MongoDB Connection URI
+  { regex: /mongodb(\+srv)?:\/\/[^\s'"]+/g, title: "MongoDB Connection URI" },
+
+  // 32. PostgreSQL URI
+  { regex: /postgres(?:ql)?:\/\/[^\s'"]+/g, title: "PostgreSQL URI" },
+
+  // 33. MySQL URI
+  { regex: /mysql:\/\/[^\s'"]+/g, title: "MySQL URI" },
+
+  // 34. Redis URI
+  { regex: /redis:\/\/[^\s'"]+/g, title: "Redis URI" },
+
+  // 35. Elasticsearch URI
+  { regex: /elasticsearch:\/\/[^\s'"]+/g, title: "Elasticsearch URI" },
+
+  // 36. Supabase DB Key (as provided)
+  { regex: /supabase\.co\/[a-z0-9]{15,}/g, title: "Supabase DB Key" },
+
+  // 37. Firebase URL
+  { regex: /https:\/\/[a-z0-9-]+\.firebaseio\.com/g, title: "Firebase URL" },
+
+  // 38. JDBC URL
+  { regex: /jdbc:\w+:\/\/[^\s'"]+/g, title: "JDBC URL" },
+
+  // 39. AWS RDS Hostname
+  { regex: /\b[a-z0-9-]+\.rds\.amazonaws\.com\b/g, title: "AWS RDS Hostname" },
+
+  // 40. Cloud SQL URI (GCP)
+  { regex: /googleapis\.com\/sql\/v1beta4\/projects\//g, title: "Cloud SQL URI (GCP)" },
+
+  // 41. Algolia API Key (context)
+  { regex: /(algolia|application)_?key['"\s:=]+[a-zA-Z0-9]{10,}/gi, title: "Algolia API Key" },
+
+  // 42. Firebase API Key in firebaseConfig
+  { regex: /firebaseConfig\s*=\s*{[^}]*apiKey\s*:\s*['"][^'"]+['"]/g, title: "Firebase API Key (firebaseConfig)" },
+
+  // 43. Cloudinary URL
+  { regex: /cloudinary:\/\/[0-9]{15}:[a-zA-Z0-9]+@[a-zA-Z]+/g, title: "Cloudinary URL" },
+
+  // 44. Sentry DSN
+  { regex: /https:\/\/[a-zA-Z0-9]+@[a-z]+\.ingest\.sentry\.io\/\d+/g, title: "Sentry DSN" },
+
+  // 45. Netlify Token
+  { regex: /netlifyAuthToken\s*=\s*['"][a-z0-9]{40}['"]/g, title: "Netlify Token" },
+
+  // 46. GitHub OAuth App Secret (VERY generic)
+  { regex: /\b[a-f0-9]{40}\b/g, title: "GitHub OAuth App Secret (Generic)" },
+
+  // 47. Segment API Key (context)
+  { regex: /segment(.{0,20})?key['"\s:=]+[a-zA-Z0-9]{10,}/gi, title: "Segment API Key" },
+
+  // 48. Intercom Access Token (context)
+  { regex: /intercom(.{0,20})?token['"\s:=]+[a-zA-Z0-9-_]{20,}/gi, title: "Intercom Access Token" },
+
+  // 49. Amplitude API Key (apiKey: "...")
+  { regex: /apiKey['"]?\s*:\s*['"][a-z0-9\-]{32,64}['"]/g, title: "Amplitude API Key" },
+
+  // 50. Plaid Client Secret (context)
+  { regex: /plaid(.{0,20})?(client)?secret['"\s:=]+[a-z0-9-_]{30,}/gi, title: "Plaid Client Secret" },
+
+  // 51. Docker Hub Password (context)
+  { regex: /docker(.{0,20})?password['"\s:=]+[^\s'"]{8,}/gi, title: "Docker Hub Password" },
+
+  // 52. AWS IAM Role ARN
+  { regex: /arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9_+=,.@\-_/]+/g, title: "AWS IAM Role ARN" },
+
+  // 53. AWS S3 Bucket URL
+  { regex: /s3:\/\/[a-z0-9\-\.]{3,63}/g, title: "AWS S3 Bucket URL" },
+
+  // 54. Kubernetes Secret Name
+  { regex: /secretName:\s*['"]?[a-z0-9\-]+['"]?/gi, title: "Kubernetes secretName" },
+
+  // 55. Helm Secret Value
+  { regex: /secret\s*:\s*['"][^'"]+['"]/gi, title: "Helm Secret Value" },
+
+  // 56. GitHub Actions Secret Reference
+  { regex: /secrets\.[A-Z0-9_]+/g, title: "GitHub Actions Secret Reference" },
+
+  // 57. GitHub Actions Encrypted Value
+  { regex: /encrypted_value:\s*['"][a-zA-Z0-9+/=]{10,}['"]/g, title: "GitHub Actions Encrypted Value" },
+
+  // 58. K8s Service Account Token (header)
+  { regex: /eyJhbGciOiJSUzI1NiIsImtpZCI6/g, title: "K8s Service Account Token (Header)" },
+
+  // 59. Vault Token
+  { regex: /\bs\.[a-zA-Z0-9]{8,}\b/g, title: "Vault Token" },
+
+  // 60. Hashicorp Vault URL
+  { regex: /https:\/\/vault\.[a-z0-9\-_\.]+\.com/g, title: "Hashicorp Vault URL" },
+
+  // 61. CircleCI Token
+  { regex: /circle-token=[a-z0-9]{40}/g, title: "CircleCI Token" },
+
+  // 62. Travis CI Token (context)
+  { regex: /travis(.{0,20})?token['"\s:=]+[a-z0-9]{30,}/gi, title: "Travis CI Token" },
+
+  // 63. Jenkins Crumb Token
+  { regex: /Jenkins-Crumb:\s*[a-z0-9]{30,}/g, title: "Jenkins Crumb Token" },
+
+  // 64. Azure DevOps Token (very generic)
+  { regex: /\b[a-z0-9]{52}\b/g, title: "Azure DevOps Token (Generic)" },
+
+  // 65. GitHub Personal Access Token (duplicate of #5 but keep)
+  { regex: /\bghp_[a-zA-Z0-9]{36}\b/g, title: "GitHub Personal Access Token" },
+
+  // 66. GitHub Fine-Grained Token
+  { regex: /\bgithub_pat_[0-9a-zA-Z_]{20,}\b/g, title: "GitHub Fine-Grained Token" },
+
+  // 67. Bitbucket OAuth Key (context)
+  { regex: /bitbucket(.{0,20})?key['"\s:=]+[a-zA-Z0-9]{20,}/gi, title: "Bitbucket OAuth Key" },
+
+  // 68. Bitbucket OAuth Secret (context)
+  { regex: /bitbucket(.{0,20})?secret['"\s:=]+[a-zA-Z0-9]{20,}/gi, title: "Bitbucket OAuth Secret" },
+
+  // 69. GitLab Runner Token
+  { regex: /\bglrt-[a-zA-Z0-9_-]{20}\b/g, title: "GitLab Runner Token" },
+
+  // 70. Netlify Access Token (duplicate of #45 but keep)
+  { regex: /netlifyAuthToken\s*=\s*['"][a-z0-9]{40}['"]/g, title: "Netlify Access Token" },
+
+  // 71. Bugsnag API Key (very generic)
+  { regex: /\b[a-f0-9]{32}\b/g, title: "Bugsnag API Key (Generic)" },
+
+  // 72. Datadog API Key (very generic)
+  { regex: /\b[a-z0-9]{32}\b/g, title: "Datadog API Key (Generic)" },
+
+  // 73. Loggly Token
+  { regex: /\b[a-z0-9]{30}-[a-z0-9]{10}\b/g, title: "Loggly Token" },
+
+  // 74. New Relic Key
+  { regex: /\bNRII-[a-zA-Z0-9]{20,}\b/g, title: "New Relic Key" },
+
+  // 75. Mixpanel Token (context)
+  { regex: /mixpanel(.{0,20})?token['"\s:=]+[a-z0-9]{32}/gi, title: "Mixpanel Token" },
+
+  // 76. Heap Analytics App ID
+  { regex: /heapSettings\.appId\s*=\s*['"][a-z0-9]{8,12}['"]/g, title: "Heap Analytics App ID" },
+
+  // 77. Keen IO Project ID
+  { regex: /projectId['"]?\s*:\s*['"][a-f0-9]{24}['"]/g, title: "Keen IO Project ID" },
+
+  // 78. Keen IO Write Key
+  { regex: /writeKey['"]?\s*:\s*['"][a-zA-Z0-9]{64}['"]/g, title: "Keen IO Write Key" },
+
+  // 79. Snyk Token
+  { regex: /snyk_token\s*=\s*[a-f0-9\-]{36}/g, title: "Snyk Token" },
+
+  // 80. Rollbar Access Token
+  { regex: /access_token['"]?\s*:\s*['"][a-z0-9]{32}['"]/g, title: "Rollbar Access Token" },
+
+  // 81. Twitch API Key (context)
+  { regex: /twitch(.{0,20})?key['"\s:=]+[a-zA-Z0-9]{20,}/gi, title: "Twitch API Key" },
+
+  // 82. Discord Bot Token
+  { regex: /[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}/g, title: "Discord Bot Token" },
+
+  // 83. Discord Webhook URL
+  { regex: /https:\/\/discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[a-zA-Z0-9_-]+/g, title: "Discord Webhook URL" },
+
+  // 84. Steam Web API Key (context)
+  { regex: /steam(.{0,20})?key['"\s:=]+[a-zA-Z0-9]{32}/gi, title: "Steam Web API Key" },
+
+  // 85. Riot Games API Key
+  { regex: /RGAPI-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, title: "Riot Games API Key" },
+
+  // 86. Private IP (Internal)
+  { regex: /\b(10\.\d{1,3}|\b192\.168|\b172\.(1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g, title: "Private IP (Internal)" },
+
+  // 87. Localhost Reference
+  { regex: /localhost:[0-9]{2,5}/g, title: "Localhost Reference" },
+
+  // 88. Dev/Stage URL
+  { regex: /(dev|staging|test)\.[a-z0-9.-]+\.(com|net|io)/g, title: "Dev/Stage URL" },
+
+  // 89. Internal Subdomain URL
+  { regex: /https?:\/\/[a-z0-9.-]+\.internal\.[a-z]{2,}/g, title: "Internal Subdomain URL" },
+
+  // 90. Preprod URLs
+  { regex: /https:\/\/preprod\.[a-z0-9-]+\.[a-z]{2,}/g, title: "Preprod URL" },
+
+  // 91. Private Key Block
+  { regex: /-----BEGIN (RSA|DSA|EC|OPENSSH)? PRIVATE KEY-----/g, title: "Private Key Block" },
+
+  // 92. PEM Certificate
+  { regex: /-----BEGIN CERTIFICATE-----/g, title: "PEM Certificate" },
+
+  // 93. PGP Private Key Block
+  { regex: /-----BEGIN PGP PRIVATE KEY BLOCK-----/g, title: "PGP Private Key Block" },
+
+  // 94. Base64 High Entropy String
+  { regex: /['"][A-Za-z0-9+\/]{40,}={0,2}['"]/g, title: "Base64 High Entropy String" },
+
+  // 95. API Key Generic Detector
+  { regex: /(apikey|api_key|secret|token)['"\s:=]+[a-zA-Z0-9\-._]{8,}/gi, title: "API Key Generic Detector" },
+
+  // 96. Bearer Token Generic
+  { regex: /authorization:\s*Bearer\s+[a-zA-Z0-9\-._~+/]+=*/gi, title: "Bearer Token Generic" },
+
+  // 97. Session ID
+  { regex: /(sessionid|session_id)['"\s:=]+[a-zA-Z0-9]{10,}/gi, title: "Session ID" },
+
+  // 98. Cookie Name Generic
+  { regex: /set-cookie:\s*[a-zA-Z0-9_-]+=/gi, title: "Cookie Name Generic" },
+
+  // 99. CSRF Token
+  { regex: /csrf(token)?['"\s:=]+[a-zA-Z0-9-_]{8,}/gi, title: "CSRF Token" },
+
+  // 100. JWT in Local Storage
+  { regex: /localStorage\.setItem\(['"]token['"],\s*['"]eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+['"]\)/g, title: "JWT in Local Storage" },
+
+  // Extra from https://github.com/h33tlit/secret-regex-list
+  { regex: /cloudinary:\/\/.*/g, title: "Cloudinary (Any)" },
+  { regex: /.*firebaseio\.com/g, title: "Firebase URL (Any)" },
+  { regex: /-----BEGIN RSA PRIVATE KEY-----/g, title: "RSA private key" },
+  { regex: /-----BEGIN DSA PRIVATE KEY-----/g, title: "SSH (DSA) private key" },
+  { regex: /-----BEGIN EC PRIVATE KEY-----/g, title: "SSH (EC) private key" },
+  { regex: /amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, title: "Amazon MWS Auth Token" },
+  { regex: /[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com/g, title: "Google OAuth Client ID" },
+  { regex: /"type":\s*"service_account"/g, title: "Google (GCP) Service-account" },
+  { regex: /ya29\.[0-9A-Za-z\-_]+/g, title: "Google OAuth Access Token" },
+  { regex: /[hH]eroku.*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/g, title: "Heroku API Key (UUID)" },
+  { regex: /[a-zA-Z]{3,10}:\/\/[^\/\s:@]{3,20}:[^\/\s:@]{3,20}@.{1,100}["'\s]/g, title: "Password in URL" },
+  { regex: /access_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}/g, title: "PayPal Braintree Access Token" },
+  { regex: /sq0atp-[0-9A-Za-z\-_]{22}/g, title: "Square Access Token" },
+  { regex: /sq0csp-[0-9A-Za-z\-_]{43}/g, title: "Square OAuth Secret" },
+  { regex: /Jenkins-Crumb:\s*[a-z0-9]{30,}/g, title: "Jenkins Crumb Token (dup)" }
+], t = {}; a.forEach(({ regex: n, title: e }) => { const o = s.match(n); if (o && o.length > 0) { const c = [...new Set(o)], g = `Sniffed ${e}: ${c.join(` `)}`; t[e] = { title: e, reporter: "SecretSniffer", request: f, description: g, dedupeKey: c.join(""), severity: "high" }; } else r.console.log(`No matches found for ${e}`); }); for (const n in t) if (t.hasOwnProperty(n)) { const e = t[n]; await r.findings.create(e); } } export { l as run };
